@@ -19,7 +19,7 @@ from state import (
 )
 
 
-STYLE_GUIDE_PATH = Path(__file__).resolve().parents[1] / "config" / "webmd_style.md"
+STYLE_GUIDE_PATH = Path(__file__).resolve().parents[1] / "config" / "article_style.md"
 ReviewRoute = Literal["human_review", "deep_research", "rewrite"]
 REWRITE_FAILURES: set[FailureType] = {
     "unsupported_claim",

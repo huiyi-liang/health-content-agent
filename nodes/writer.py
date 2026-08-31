@@ -25,7 +25,7 @@ from state import (
 )
 
 
-STYLE_GUIDE_PATH = Path(__file__).resolve().parents[1] / "config" / "webmd_style.md"
+STYLE_GUIDE_PATH = Path(__file__).resolve().parents[1] / "config" / "article_style.md"
 SECTION_ID_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 CITATION_PATTERN = re.compile(r"\[(R\d+)\]")
 

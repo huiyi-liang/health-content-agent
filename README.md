@@ -1,6 +1,6 @@
 # Health Content Agent
 
-A beginner-friendly multi-agent application that turns one health topic into
+A multi-agent application that turns one health topic into
 patient-focused article ideas and then into an evidence-grounded article draft.
 
 The project uses Python, LangGraph, Nebius, the You.com Search API, and
@@ -75,12 +75,32 @@ human decision, and enforces the retry limit.
 
 ## What each node does
 
+### Quick reference
+
+| Node | Main question | Main state output |
+| --- | --- | --- |
+| Discovery Research | What might be worth writing about? | `discovery_queries`, `discovery_sources` |
+| Opportunity Agent | Which three ideas offer the strongest patient value? | `article_ideas` |
+| Human Selection | Which idea did the user choose? | `selected_idea` |
+| Deep Research | What evidence is needed for that specific idea? | `deep_research_queries`, `deep_research_sources` |
+| Writer Agent | How can the evidence become a useful article? | `draft` |
+| Reviewer Agent | What is the highest-priority problem, if any? | Review fields and feedback |
+| Deterministic routing | Which node should run next? | Route, retry count, or final status |
+
 ### 1. Discovery Research
 
-File: `nodes/discovery.py`
+**File:** `nodes/discovery.py`
 
-Discovery asks, “What might be worth writing about for someone dealing with
-this topic?”
+#### Purpose
+
+Answer: **What might be worth writing about for someone dealing with this
+health topic?**
+
+#### Reads from state
+
+- `topic`
+
+#### What happens
 
 - The Nebius LLM plans exactly three complementary search queries.
 - Each query makes one You.com request.
@@ -89,42 +109,103 @@ this topic?”
 - Python normalizes results into `Source` objects with IDs such as `D1`, `D2`,
   and `D3`.
 
-Discovery is broad. It finds possible directions but does not choose the final
-article idea or prove that enough evidence exists to write it.
+#### Writes to state
+
+- `discovery_queries`
+- `discovery_sources`
+
+#### Boundary
+
+Discovery finds possible directions. It does not choose the final idea or
+prove that enough evidence exists to write an article.
 
 ### 2. Opportunity Agent
 
-File: `nodes/opportunity.py`
+**File:** `nodes/opportunity.py`
 
-The Opportunity Agent reads the topic and Discovery sources directly. In one
-LLM call, it considers at least six candidates internally and returns the
-strongest three.
+#### Purpose
 
-It judges ideas using:
+Answer: **Which three article ideas are most likely to provide useful,
+specific value to patients?**
 
-1. patient relevance;
-2. specificity; and
-3. usefulness or actionability.
+#### Reads from state
 
-Python assigns the stable IDs `A1`, `A2`, and `A3`. Each `ArticleIdea` contains
-a title, article angle, and reason the topic may matter to patients.
+- `topic`
+- `discovery_sources`
+
+#### What happens
+
+- One LLM call considers at least six candidates internally.
+- It selects the strongest three using patient relevance, specificity, and
+  usefulness or actionability.
+- Python assigns the stable IDs `A1`, `A2`, and `A3`.
+
+#### Writes to state
+
+- `article_ideas`: exactly three complete `ArticleIdea` objects
+
+Each idea contains:
+
+- `idea_id`
+- `title`
+- `article_angle`
+- `reason`
+
+#### Boundary
+
+The Opportunity Agent recommends ideas. It does not select one for the user,
+perform Deep Research, or judge whether final evidence will be sufficient.
 
 ### 3. Human Selection
 
-Files: `graph.py`, `nodes/opportunity.py`, and `app.py`
+**Files:** `graph.py`, `nodes/opportunity.py`, and `app.py`
 
-LangGraph pauses after the Opportunity Agent. Streamlit displays all three
-ideas and waits for the user to select exactly one.
+#### Purpose
 
-The selected ID is returned to the same paused graph thread. Deterministic
-Python looks up the matching idea and writes the complete `ArticleIdea` object
-to `selected_idea`. Discovery and Opportunity do not run again.
+Pause automation so the human—not the LLM—chooses which idea moves forward.
+
+#### Reads from state
+
+- `article_ideas`
+
+#### What happens
+
+- LangGraph interrupts after the Opportunity Agent.
+- Streamlit displays the title, angle, and reason for all three ideas.
+- The user selects one stable idea ID.
+- The selected ID resumes the same LangGraph thread.
+- Python validates the ID and retrieves the complete matching `ArticleIdea`.
+
+#### Writes to state
+
+- `selected_idea`: the complete chosen `ArticleIdea`, not only its title
+
+#### Boundary
+
+Discovery and Opportunity do not run again after resume. The interface only
+collects the choice; selection validation remains UI-independent Python code.
 
 ### 4. Deep Research
 
-File: `nodes/research.py`
+**File:** `nodes/research.py`
 
-Deep Research asks, “What evidence is needed to write this selected article?”
+#### Purpose
+
+Answer: **What evidence is needed to write this specific selected article?**
+
+#### Reads from state
+
+For the first research pass:
+
+- `selected_idea`
+
+For a Reviewer-triggered retry, it also reads:
+
+- `review_feedback`
+- existing `deep_research_queries`
+- existing `deep_research_sources`
+
+#### What happens
 
 - The LLM reads the full selected idea and plans exactly three targeted
   queries.
@@ -135,70 +216,145 @@ Deep Research asks, “What evidence is needed to write this selected article?�
   `R1`, `R2`, and `R3`.
 - Highlights remain unchanged.
 
-If the Reviewer later identifies insufficient research, this node generates
-three new queries using the feedback. New queries and sources are appended,
-and R-numbering continues instead of replacing earlier evidence.
+#### Writes to state
+
+- `deep_research_queries`
+- `deep_research_sources`
+
+On retry, new queries and Sources are appended. Existing evidence is preserved,
+and R-numbering continues with the next available number.
+
+#### Boundary
+
+The LLM decides what to search. You.com retrieves the evidence. Deterministic
+Python normalizes and stores it without an intermediate LLM summary.
 
 ### 5. Writer Agent
 
-File: `nodes/writer.py`
+**File:** `nodes/writer.py`
 
-The Writer receives:
+#### Purpose
 
-- the complete selected idea;
-- all Deep Research sources; and
-- `config/webmd_style.md`.
+Turn the selected idea and supplied research evidence into a readable,
+consumer-health article.
 
-It returns a structured `ArticleDraft`, not one large Markdown string. The
-draft contains reader-facing sections with stable machine-readable
-`section_id` values.
+#### Reads from state and configuration
 
-Medical factual claims must come from the supplied evidence and use inline
-citations such as `[R1]` or `[R1][R3]`. Python checks that every citation ID
-exists in `deep_research_sources`.
+- `selected_idea`
+- `deep_research_sources`
+- `config/article_style.md`
 
-For the MVP, the Writer also avoids detailed study statistics such as odds
-ratios, confidence intervals, P-values, and regression coefficients. It uses
-plain-language, evidence-faithful findings instead.
+For a revision, it also reads:
 
-During a revision, the Writer changes only Reviewer-flagged sections. Unflagged
-sections and their stable IDs remain unchanged.
+- the current `draft`
+- `flagged_sections`
+- `review_feedback`
+
+#### What happens
+
+- The LLM writes a structured article using only supplied evidence for medical
+  factual claims.
+- Inline citations use stored IDs such as `[R1]` or `[R1][R3]`.
+- Python verifies that every citation ID exists in `deep_research_sources`.
+- The MVP uses plain-language findings instead of detailed study statistics
+  such as odds ratios, confidence intervals, P-values, or regression
+  coefficients.
+- On revision, only Reviewer-flagged sections may change.
+
+#### Writes to state
+
+- `draft`: one structured `ArticleDraft`
+
+Each draft contains:
+
+- an article `title`
+- a list of `ArticleSection` objects
+- a stable `section_id`, optional reader-facing `heading`, and `content` for
+  each section
+
+#### Boundary
+
+The Writer cannot search for new evidence, invent R# IDs, or decide whether its
+own article passes review. Unflagged sections remain unchanged during revision.
 
 ### 6. Reviewer Agent
 
-File: `nodes/reviewer.py`
+**File:** `nodes/reviewer.py`
 
-The Reviewer compares the structured draft against the actual Deep Research
-evidence and editorial guide. It judges support based on the supplied evidence,
-not on the model’s general medical knowledge.
+#### Purpose
 
-It returns one primary failure using this priority:
+Answer: **What is the single highest-priority problem with this draft, if one
+exists?**
 
-1. `insufficient_research`
-2. `unsupported_claim`
-3. `style_or_readability`
-4. `patient_value`
+#### Reads from state and configuration
 
-For a failure, `flagged_sections` contains stable `section_id` values so the
-Writer knows exactly which sections may change.
+- `draft`
+- `deep_research_sources`
+- `config/article_style.md`
 
-The Reviewer determines **what is wrong**. It does not choose the next graph
-node.
+#### What happens
+
+- The Reviewer compares the draft with the actual supplied evidence.
+- It does not treat its general medical knowledge as evidence.
+- It chooses one primary failure using this priority:
+
+  1. `insufficient_research`
+  2. `unsupported_claim`
+  3. `style_or_readability`
+  4. `patient_value`
+
+- For a failure, it identifies affected sections using stable `section_id`
+  values rather than reader-facing headings.
+
+#### Writes to state
+
+- `review_status`
+- `failure_type`
+- `flagged_sections`
+- `review_feedback`
+
+#### Boundary
+
+The Reviewer determines **what is wrong**. It does not choose which graph node
+runs next and does not rewrite the article itself.
 
 ### 7. Deterministic routing
 
-File: `graph.py`
+**File:** `graph.py`
 
-Ordinary Python determines **what happens next**:
+#### Purpose
 
-- PASS → complete the automated workflow;
-- insufficient research → return to Deep Research;
-- other editorial failures → return to Writer revision; and
-- three completed automated correction cycles → require human review instead
-  of starting a fourth cycle.
+Turn the structured review result into a fixed, predictable workflow route.
+
+#### Reads from state
+
+- `review_status`
+- `failure_type`
+- `retry_count`
+- `workflow_error`
+
+#### Routing rules
+
+- PASS → `completed`
+- `insufficient_research` → increment the retry count and run Deep Research
+- `unsupported_claim` → increment the retry count and revise the Writer draft
+- `style_or_readability` → increment the retry count and revise the Writer
+  draft
+- `patient_value` → increment the retry count and revise the Writer draft
+- another correction needed after three loops → `human_review_required`
+- unrecoverable system or tool error → `failed`
+
+#### Writes or controls
+
+- the next graph edge
+- updated `retry_count` when a correction begins
+- `final_status` when automation stops
+
+#### Boundary
 
 This prevents an LLM from inventing graph transitions or creating an unlimited
-loop.
+loop. The Reviewer determines **what is wrong**; deterministic routing decides
+**what happens next**.
 
 ## Supporting components
 
@@ -208,7 +364,7 @@ loop.
 | `tools/search.py` | You.com HTTP requests, web/news normalization, Highlights preservation, and deterministic source IDs |
 | `prompts.py` | Task instructions for the LLM-based components |
 | `llm.py` | One shared Nebius model configuration used by every LLM node |
-| `config/webmd_style.md` | Reusable synthetic consumer-health editorial guidance |
+| `config/article_style.md` | Reusable synthetic consumer-health editorial guidance |
 | `graph.py` | LangGraph sequencing, interrupt/resume, routing, and retry enforcement |
 | `app.py` | Thin Streamlit input, selection, progress, and result presentation layer |
 
@@ -281,8 +437,43 @@ and Reviewer feedback for human review.
 uv run pytest
 ```
 
-The unit and integration tests use mocked model and search results. They do not
-call Nebius or You.com.
+The automated test scripts act like rehearsals: controlled fake LLM and search
+responses play the external roles, so each Python component can be checked
+repeatedly without waiting for APIs or spending provider credits.
+
+| Test script | What it verifies |
+| --- | --- |
+| `tests/test_state.py` | The shared Source, idea, draft, section, review, and GraphState contracts |
+| `tests/test_search.py` | You.com request construction, web/news normalization, Highlights preservation, and deterministic source IDs |
+| `tests/test_research.py` | Discovery query validation, exactly three mocked searches, combined evidence, and errors |
+| `tests/test_opportunity.py` | Exactly three structured article ideas, deterministic A# IDs, and evidence preservation |
+| `tests/test_deep_research.py` | Human selection, targeted query validation, medical-domain preferences, and R# evidence |
+| `tests/test_writer.py` | Structured sections, evidence formatting, source citation IDs, and Writer input failures |
+| `tests/test_reviewer.py` | Review result consistency, valid flagged section IDs, and deterministic route decisions |
+| `tests/test_phase8.py` | LangGraph interrupt/resume, research retry, Writer revision, retry limit, and failure paths |
+| `tests/test_app.py` | Deterministic article, source, flagged-section, and error-display helpers used by Streamlit |
+
+Pytest automatically discovers functions whose names begin with `test_`. Each
+test arranges a controlled example, runs one part of the application, and uses
+assertions to compare the actual result with the expected result. A test marked
+`PASSED` means that behavior matched its contract; it does not mean a live API
+call was made.
+
+Run one test script while learning or debugging a component:
+
+```bash
+uv run pytest tests/test_writer.py -v
+```
+
+Run one specific scenario:
+
+```bash
+uv run pytest tests/test_phase8.py::test_langgraph_stops_before_fourth_automated_retry -v
+```
+
+The automated tests do not call Nebius or You.com. The standalone smoke tests
+below are separate manual checks that use the real services and may consume
+credits.
 
 ## Terminal workflow test
 

@@ -128,4 +128,3 @@ Do not:
 - present speculation as fact
 - give individualized medical advice
 - add generic condition information simply to make the article longer
-
