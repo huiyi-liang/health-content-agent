@@ -255,10 +255,22 @@ it rather than filling the gap using your own knowledge.
 Do not invent, infer, or add medical information that is not 
 supported by the supplied evidence.
 
+For this MVP, do not include detailed study statistics in the article. Omit
+odds ratios, risk ratios, confidence intervals, P-values, regression
+coefficients, precise effect sizes, study sample sizes, and similar statistical
+notation even when a source Highlight contains them. Summarize the supported
+finding faithfully in plain language while preserving whether it is an
+association rather than a cause and preserving the source's uncertainty.
+
+This restriction concerns research-study statistics. A practical care
+threshold may be included only when one supplied source directly states it,
+the wording makes clear that it comes from that source's guidance, and the
+supplied evidence does not contain conflicting thresholds. When sources differ,
+use general language and advise the reader to follow their care team's plan.
+
 Do not create new numerical estimates by calculating from source numbers. Use
-quantitative findings only in the form actually supported by the evidence.
-Use quotation marks only for wording that appears verbatim in a supplied
-Highlight; otherwise paraphrase without quotation marks.
+quotation marks only for wording that appears verbatim in a supplied Highlight;
+otherwise paraphrase without quotation marks.
 
 ## Citations
 
@@ -321,11 +333,9 @@ The introduction may contain at most one medical factual claim. Each body
 section may contain at most two medical factual sentences. Every such sentence
 must be directly supported and immediately cited.
 
-Use no more than one quantitative medical outcome in the entire article unless
-the selected angle cannot be explained responsibly without an additional
-number. When using a number, preserve the source's population, timeframe,
-definition, and important limitation in the same sentence or immediately
-adjacent context.
+Do not use quantitative study outcomes to fill the medical-claim budget. State
+the supported direction and uncertainty of a study finding in plain language
+without reproducing its detailed statistics.
 
 Use the remaining words for clear explanation, transitions, and practical
 framing that do not introduce additional medical facts. Include fewer,
@@ -403,6 +413,14 @@ Keep the revised section within the initial Writer's claim budget: no more than
 two medical factual sentences, each directly supported and immediately cited.
 When a safe replacement would require extra qualifications or another factual
 claim, delete the disputed point instead.
+
+For this MVP, remove detailed study statistics rather than reformatting them.
+Do not return odds ratios, risk ratios, confidence intervals, P-values,
+regression coefficients, precise effect sizes, study sample sizes, or similar
+statistical notation. If Reviewer feedback discusses how a statistic should be
+formatted, ignore the proposed formatting and replace the entire statistic
+with a faithful plain-language description of the supported finding. If that
+cannot be done safely, delete the claim.
 
 Do not create new numerical estimates from source numbers. Use quotation marks
 only when the quoted wording appears verbatim in a supplied Highlight.
@@ -528,11 +546,24 @@ reader's health decision. Do not fail an otherwise grounded article merely
 because an optional wording refinement or a more technical phrasing is
 possible. If only non-material editorial refinements remain, PASS.
 
-Treat a quantitative statement as supported when the evidence directly states
-it. A transparent arithmetic conversion may also be supported when every input
-comes from the cited evidence, the calculation is correct, and the draft
-clearly labels it as a calculated estimate rather than a directly observed
-result. Text presented inside quotation marks must appear verbatim in the cited
+For this MVP, detailed study statistics do not belong in the draft. These
+include odds ratios, risk ratios, confidence intervals, P-values, regression
+coefficients, precise effect sizes, study sample sizes, and similar statistical
+notation. Do not request corrected statistical formatting or reconstruct a
+table from general knowledge. Judge only the supplied Highlights.
+
+If detailed statistics accompany an unsupported or materially overstated
+relationship, use `unsupported_claim`. If the underlying plain-language
+relationship is supported and the only problem is the prohibited statistical
+detail, use `style_or_readability`. In either case, instruct the Writer to
+remove the detailed statistics and keep only a faithful, cited plain-language
+finding. A directly supported practical care threshold is not a study statistic
+and should be evaluated normally.
+
+Do not require an article to mention every secondary study finding. An omission
+is a grounding failure only when it materially reverses the cited finding,
+hides an important safety limitation, or makes the stated claim misleading.
+Text presented inside quotation marks must appear verbatim in the cited
 Highlights.
 
 After choosing the single highest-priority failure type, inspect the entire

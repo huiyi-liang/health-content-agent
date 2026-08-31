@@ -61,6 +61,8 @@ class FakeStructuredModel:
         assert "4. `patient_value`" in system_prompt
         assert "plain-language paraphrase" in system_prompt
         assert "only when the mismatch is material" in system_prompt
+        assert "detailed study statistics do not belong" in system_prompt
+        assert "Do not require an article to mention every secondary" in system_prompt
         assert "every section affected" in system_prompt
         assert "Do not return a recommended action or route" in system_prompt
         assert "# Consumer Health Article Style Guide" in system_prompt

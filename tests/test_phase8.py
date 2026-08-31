@@ -17,7 +17,7 @@ from nodes.research import (
     plan_deep_research_retry_queries,
 )
 from nodes.writer import WriterRevisionOutput, writer_revision_node
-from prompts import writer_revision_user_prompt
+from prompts import writer_revision_system_prompt, writer_revision_user_prompt
 from state import (
     ArticleDraft,
     ArticleIdea,
@@ -294,6 +294,13 @@ def test_repeated_unsupported_claim_uses_mandatory_deletion_strategy() -> None:
     assert "repeated unsupported-claim correction" in prompt
     assert "Rebuild each flagged section conservatively from scratch" in prompt
     assert "at most two short medical factual sentences" in prompt
+
+
+def test_writer_revision_removes_detailed_study_statistics() -> None:
+    prompt = writer_revision_system_prompt("Style guide")
+
+    assert "remove detailed study statistics rather than reformatting them" in prompt
+    assert "ignore the proposed formatting" in prompt
 
 
 def _mock_discovery(state: GraphState) -> dict[str, Any]:
