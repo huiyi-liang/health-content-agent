@@ -9,6 +9,7 @@ from tools.search import (
     YOU_SEARCH_URL,
     YouSearchEmptyResultsError,
     YouSearchResponseError,
+    _safe_search_trace_inputs,
     normalize_all_search_results,
     normalize_search_results,
     request_you_search,
@@ -42,6 +43,22 @@ SAMPLE_RESPONSE = {
     },
     "metadata": {"query": "type 2 diabetes"},
 }
+
+
+def test_langsmith_search_trace_inputs_remove_credentials_and_client() -> None:
+    safe_inputs = _safe_search_trace_inputs(
+        {
+            "query": "type 2 diabetes",
+            "result_count": 4,
+            "api_key": "secret-test-value",
+            "client": object(),
+        }
+    )
+
+    assert safe_inputs == {
+        "query": "type 2 diabetes",
+        "result_count": 4,
+    }
 
 
 def test_web_results_normalize_and_preserve_highlights() -> None:

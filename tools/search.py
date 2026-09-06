@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
 from typing import Any, Literal, Mapping, Sequence
 
 import httpx
-from dotenv import load_dotenv
+from langsmith import traceable
 
+from config import load_project_environment
 from state import Source
 
 
@@ -39,6 +39,20 @@ class YouSearchEmptyResultsError(YouSearchError):
     """Raised when the requested web or news section has no results."""
 
 
+def _safe_search_trace_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
+    """Remove credentials and injected HTTP clients from LangSmith trace inputs."""
+
+    safe_inputs = dict(inputs)
+    safe_inputs.pop("api_key", None)
+    safe_inputs.pop("client", None)
+    return safe_inputs
+
+
+@traceable(
+    name="You.com Search",
+    run_type="tool",
+    process_inputs=_safe_search_trace_inputs,
+)
 def request_you_search(
     query: str,
     *,
@@ -271,9 +285,7 @@ def search_you(
 
 
 def _load_api_key() -> str:
-    # search.py is inside tools/, so parents[1] points to the project root.
-    project_env = Path(__file__).resolve().parents[1] / ".env"
-    load_dotenv(project_env, override=False)
+    load_project_environment()
     api_key = os.getenv("YOU_API_KEY")
     if not api_key:
         raise YouSearchConfigurationError(

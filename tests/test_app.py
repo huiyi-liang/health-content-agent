@@ -4,9 +4,28 @@ from app import (
     article_display_blocks,
     flagged_section_labels,
     format_workflow_error,
+    graph_config,
     source_display_entries,
 )
 from state import ArticleDraft, ArticleSection, Source, WorkflowError
+
+
+def test_graph_config_adds_langsmith_thread_metadata() -> None:
+    config = graph_config("streamlit-test-run")
+
+    assert config["configurable"]["thread_id"] == "streamlit-test-run"
+    assert config["metadata"]["thread_id"] == "streamlit-test-run"
+    assert config["metadata"]["surface"] == "streamlit"
+    assert config["metadata"]["workflow_stage"] == "before_selection"
+    assert config["run_name"] == "health_content_workflow_before_selection"
+
+    resumed_config = graph_config(
+        "streamlit-test-run",
+        stage="after_selection",
+    )
+    assert resumed_config["run_name"] == (
+        "health_content_workflow_after_selection"
+    )
 
 
 def _draft() -> ArticleDraft:

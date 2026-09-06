@@ -1,10 +1,10 @@
 """Shared Nebius LLM configuration for all LLM-based workflow nodes."""
 
 import os
-from pathlib import Path
 
-from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
+
+from config import load_project_environment
 
 
 # All LLM-based nodes import this shared configuration so they use the same
@@ -18,8 +18,7 @@ def create_nebius_llm() -> ChatOpenAI:
 
     # llm.py is at the project root, so its neighboring .env is our local
     # credential file. override=False preserves values already set by the shell.
-    project_env = Path(__file__).resolve().parent / ".env"
-    load_dotenv(project_env, override=False)
+    load_project_environment()
 
     # Only the secret key comes from .env. The chosen model stays visible in
     # code above so every future LLM node uses the same model by default.

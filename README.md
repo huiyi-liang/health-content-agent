@@ -367,6 +367,7 @@ loop. The Reviewer determines **what is wrong**; deterministic routing decides
 | `config/article_style.md` | Reusable synthetic consumer-health editorial guidance |
 | `graph.py` | LangGraph sequencing, interrupt/resume, routing, and retry enforcement |
 | `persistence.py` | End-of-run checkpoint-history reconstruction and JSON export |
+| `evaluations.py` | Upload of saved runs and deterministic LangSmith baseline evaluation |
 | `app.py` | Thin Streamlit input, selection, progress, and result presentation layer |
 
 ## LLM work versus deterministic Python work
@@ -410,6 +411,9 @@ Add your real keys only to the local `.env` file:
 ```text
 YOU_API_KEY=<your You.com key>
 NEBIUS_API_KEY=<your Nebius key>
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=<your LangSmith key>
+LANGSMITH_PROJECT=<your LangSmith project name>
 ```
 
 The `.env` file is ignored by Git. Do not put real credentials in
@@ -435,6 +439,47 @@ source list. Its Discovery evidence, draft versions, Reviewer decisions, and
 final state are also saved under `data/runs/`. A run that reaches the correction
 limit displays the latest draft and Reviewer feedback for human review.
 
+## Monitor runs in LangSmith
+
+With the LangSmith values above populated, start the application normally:
+
+```bash
+uv run streamlit run app.py
+```
+
+Open the project named by `LANGSMITH_PROJECT` in LangSmith's **Observability**
+area. The two sides of the human checkpoint appear as
+`health_content_workflow_before_selection` and
+`health_content_workflow_after_selection`. Their LangGraph nodes and Nebius
+calls appear as nested runs, and You.com requests appear as `You.com Search`
+tool runs. Both traces share `thread_id` metadata, allowing LangSmith to group
+them as one workflow thread.
+
+Tracing uploads workflow inputs and outputs, including topics, evidence, and
+draft text, to LangSmith. Do not enter names or other personally identifiable
+health information when tracing is enabled. API keys and HTTP clients are not
+included in the You.com tool inputs.
+
+## Run a baseline evaluation in LangSmith
+
+After completing a workflow, evaluate its exported JSON record:
+
+```bash
+uv run python evaluations.py data/runs/<run-id>.json
+```
+
+This creates or reuses the `health-content-agent-eval` dataset and records a
+LangSmith experiment with four deterministic checks:
+
+- whether the workflow completed with a Reviewer PASS;
+- whether the three-retry limit was respected;
+- whether final `[R#]` citations refer to stored research sources; and
+- whether the expected workflow history is present.
+
+These checks measure workflow structure, not medical accuracy, evidence support,
+or article quality. Those semantic evaluations require the future expert-labeled
+golden dataset described in `project_overview.md`.
+
 ## Run the tests
 
 ```bash
@@ -456,6 +501,7 @@ repeatedly without waiting for APIs or spending provider credits.
 | `tests/test_reviewer.py` | Review result consistency, valid flagged section IDs, and deterministic route decisions |
 | `tests/test_phase8.py` | LangGraph interrupt/resume, research retry, Writer revision, retry limit, and failure paths |
 | `tests/test_app.py` | Deterministic article, source, flagged-section, and error-display helpers used by Streamlit |
+| `tests/test_evaluations.py` | Offline checks for the deterministic LangSmith evaluation functions |
 
 Pytest automatically discovers functions whose names begin with `test_`. Each
 test arranges a controlled example, runs one part of the application, and uses

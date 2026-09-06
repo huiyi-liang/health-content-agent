@@ -6,11 +6,13 @@ import argparse
 from typing import Any, Callable, Literal
 from uuid import uuid4
 
+from langchain_core.tracers.langchain import wait_for_all_tracers
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
+from config import load_project_environment
 from nodes.discovery import discovery_research_node
 from nodes.opportunity import human_selection_node, opportunity_agent_node
 from nodes.research import deep_research_node
@@ -36,6 +38,27 @@ ReviewGraphRoute = Literal[
     "failed",
 ]
 RetryTarget = Literal["deep_research", "writer_revision"]
+
+
+def workflow_run_config(
+    run_id: str,
+    *,
+    surface: str,
+    stage: Literal["before_selection", "after_selection"],
+) -> dict[str, Any]:
+    """Identify and label one workflow across LangGraph and LangSmith."""
+
+    return {
+        "configurable": {"thread_id": run_id},
+        "run_name": f"health_content_workflow_{stage}",
+        "tags": ["health-content-agent", surface, stage],
+        "metadata": {
+            "thread_id": run_id,
+            "surface": surface,
+            "workflow_stage": stage,
+            "workflow_version": "mvp",
+        },
+    }
 
 
 def create_in_memory_checkpointer() -> InMemorySaver:
@@ -332,9 +355,16 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     """Run the real graph, pause for selection, resume, and show final state."""
 
+    # Configure tracing before the first graph invocation so LangSmith captures
+    # the complete graph rather than only later LLM calls.
+    load_project_environment()
     args = _parse_args()
     run_id = f"graph-smoke-{uuid4()}"
-    config = {"configurable": {"thread_id": run_id}}
+    config = workflow_run_config(
+        run_id,
+        surface="terminal",
+        stage="before_selection",
+    )
     app = build_workflow()
 
     print(f"Topic: {args.topic}")
@@ -357,16 +387,22 @@ def main() -> None:
         }:
             export_path = export_run_history(app, config)
             print(f"Exported run: {export_path}")
+        wait_for_all_tracers()
         return
 
     selection = input("\nSelect one idea ID (A1, A2, or A3): ")
+    resume_config = workflow_run_config(
+        run_id,
+        surface="terminal",
+        stage="after_selection",
+    )
     _stream_until_pause_or_end(
         app,
         Command(resume=selection),
-        config,
+        resume_config,
     )
 
-    final_state: GraphState = app.get_state(config).values
+    final_state: GraphState = app.get_state(resume_config).values
     print()
     print(f"Retry count: {final_state.get('retry_count', 0)}")
     print(f"Final status: {final_state.get('final_status')}")
@@ -380,8 +416,9 @@ def main() -> None:
         "human_review_required",
         "failed",
     }:
-        export_path = export_run_history(app, config)
+        export_path = export_run_history(app, resume_config)
         print(f"Exported run: {export_path}")
+    wait_for_all_tracers()
 
 
 if __name__ == "__main__":

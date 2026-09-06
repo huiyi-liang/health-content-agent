@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 import streamlit as st
 from langgraph.types import Command
 
-from graph import build_workflow
+from config import load_project_environment
+from graph import build_workflow, workflow_run_config
 from persistence import RunExportError, export_run_history
 from state import ArticleDraft, ArticleIdea, GraphState, Source, WorkflowError
 
@@ -20,10 +21,18 @@ def get_workflow() -> Any:
     return build_workflow()
 
 
-def graph_config(thread_id: str) -> dict[str, dict[str, str]]:
+def graph_config(
+    thread_id: str,
+    *,
+    stage: Literal["before_selection", "after_selection"] = "before_selection",
+) -> dict[str, Any]:
     """Build the LangGraph configuration that identifies one workflow run."""
 
-    return {"configurable": {"thread_id": thread_id}}
+    return workflow_run_config(
+        thread_id,
+        surface="streamlit",
+        stage=stage,
+    )
 
 
 def article_display_blocks(
@@ -242,6 +251,8 @@ def render_finished_state(state: GraphState) -> None:
 def main() -> None:
     """Start or reconnect to one LangGraph run through a thin Streamlit UI."""
 
+    # The environment must be loaded before Streamlit starts the graph trace.
+    load_project_environment()
     st.set_page_config(page_title="Health Content Agent", layout="centered")
     st.title("Health Content Agent")
     st.write(
@@ -320,10 +331,11 @@ def main() -> None:
     # Resume the same checkpoint. The graph validates this ID against its own
     # ArticleIdea list and writes the complete selected object to selected_idea.
     try:
+        resume_config = graph_config(thread_id, stage="after_selection")
         run_graph_with_progress(
             workflow,
             Command(resume=selected_id),
-            config,
+            resume_config,
             initial_label="Researching the selected article...",
         )
     except Exception:
@@ -333,14 +345,14 @@ def main() -> None:
         )
         return
 
-    updated_state: GraphState = dict(workflow.get_state(config).values)
+    updated_state: GraphState = dict(workflow.get_state(resume_config).values)
     if updated_state.get("final_status") in {
         "completed",
         "human_review_required",
         "failed",
     }:
         try:
-            export_run_history(workflow, config)
+            export_run_history(workflow, resume_config)
         except RunExportError:
             st.warning(
                 "The workflow finished, but its evaluation record could not be saved."
