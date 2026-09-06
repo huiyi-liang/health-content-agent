@@ -16,6 +16,7 @@ from nodes.opportunity import human_selection_node, opportunity_agent_node
 from nodes.research import deep_research_node
 from nodes.reviewer import reviewer_node, route_review_result
 from nodes.writer import _print_writer_result, writer_node, writer_revision_node
+from persistence import export_run_history
 from state import (
     ArticleDraft,
     ArticleIdea,
@@ -349,6 +350,13 @@ def main() -> None:
     if not interrupts:
         final_state = app.get_state(config).values
         print(f"Final status: {final_state.get('final_status')}")
+        if final_state.get("final_status") in {
+            "completed",
+            "human_review_required",
+            "failed",
+        }:
+            export_path = export_run_history(app, config)
+            print(f"Exported run: {export_path}")
         return
 
     selection = input("\nSelect one idea ID (A1, A2, or A3): ")
@@ -367,6 +375,13 @@ def main() -> None:
         print(f"Workflow error: {error.node} / {error.type} / {error.message}")
     if final_state.get("draft") is not None:
         _print_writer_result(final_state)
+    if final_state.get("final_status") in {
+        "completed",
+        "human_review_required",
+        "failed",
+    }:
+        export_path = export_run_history(app, config)
+        print(f"Exported run: {export_path}")
 
 
 if __name__ == "__main__":

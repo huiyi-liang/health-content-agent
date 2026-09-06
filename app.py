@@ -9,6 +9,7 @@ import streamlit as st
 from langgraph.types import Command
 
 from graph import build_workflow
+from persistence import RunExportError, export_run_history
 from state import ArticleDraft, ArticleIdea, GraphState, Source, WorkflowError
 
 
@@ -296,6 +297,12 @@ def main() -> None:
 
     final_status = state.get("final_status")
     if final_status in {"completed", "human_review_required", "failed"}:
+        try:
+            export_run_history(workflow, config)
+        except RunExportError:
+            st.warning(
+                "The workflow finished, but its evaluation record could not be saved."
+            )
         render_finished_state(state)
         return
 
@@ -332,6 +339,12 @@ def main() -> None:
         "human_review_required",
         "failed",
     }:
+        try:
+            export_run_history(workflow, config)
+        except RunExportError:
+            st.warning(
+                "The workflow finished, but its evaluation record could not be saved."
+            )
         render_finished_state(updated_state)
 
 

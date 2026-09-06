@@ -366,6 +366,7 @@ loop. The Reviewer determines **what is wrong**; deterministic routing decides
 | `llm.py` | One shared Nebius model configuration used by every LLM node |
 | `config/article_style.md` | Reusable synthetic consumer-health editorial guidance |
 | `graph.py` | LangGraph sequencing, interrupt/resume, routing, and retry enforcement |
+| `persistence.py` | End-of-run checkpoint-history reconstruction and JSON export |
 | `app.py` | Thin Streamlit input, selection, progress, and result presentation layer |
 
 ## LLM work versus deterministic Python work
@@ -391,8 +392,10 @@ Streamlit session state stores only the active LangGraph thread ID, plus normal
 widget values. The thread ID lets the UI reconnect to the correct in-memory
 checkpoint after Streamlit reruns its script.
 
-The current checkpointer is intentionally in memory. Restarting the application
-clears active runs. End-of-run JSON persistence is not implemented yet.
+The current checkpointer is intentionally in memory, so restarting the
+application clears active unfinished runs. When a run reaches a terminal status,
+its evaluation history is exported to `data/runs/<run_id>.json` before that
+in-memory history is lost.
 
 ## Setup
 
@@ -428,8 +431,9 @@ Then:
 6. wait for the research, writing, review, and possible correction cycle.
 
 A completed run displays the structured article and a deterministic clickable
-source list. A run that reaches the correction limit displays the latest draft
-and Reviewer feedback for human review.
+source list. Its Discovery evidence, draft versions, Reviewer decisions, and
+final state are also saved under `data/runs/`. A run that reaches the correction
+limit displays the latest draft and Reviewer feedback for human review.
 
 ## Run the tests
 
@@ -524,7 +528,7 @@ The application intentionally does not include:
 - SEO or search-demand scoring;
 - user accounts or saved workflow history;
 - a database;
-- final JSON run persistence; or
+- persistence for unfinished/in-progress runs; or
 - autonomous search loops.
 
 These boundaries keep the project understandable and make each component easy
